@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 import zipfile
 import fileAttributesClass
 import re
+import shutil
 
 # -------- Global Variables --------
 
@@ -19,21 +20,20 @@ organization = {
     'DoD': ['Army', 'DLA', 'Navy', 'USAF', 'USMC']
 }
 postgres_db = '10.1.233.199'
-destination_path = 'C:/Users/Public/Downloads/New_CKLs'
+destination_path = 'C:/Users/Public/Downloads/New_CKLs/'
 
 date_patterns = [ #ORDER HERE MATTERS - IT SHOULD MATCH AGAINST THE LONGEST DATE FORMAT FIRST
     
-    (r'.(\d{8}).', '%Y%m%d'),  # 20211228
-    (r'.(\d{8}).', '%d%m%Y'),  # 28122021
-    (r'.(\d{8}).', '%m%d%Y'),  # 12282021
-    (r'.(\d{6}).', '%y%m%d'),  # 211228
-    (r'.(\d{2}\d{2}\d{4}).', '%m%d%Y'),  # 01012022
-    (r'.(\d{2}\d{2}\d{2}).', '%m%d%y'),  # 010122
-    (r'.(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{4}).', '%d%b%Y'),  # 28Jan2022
-    (r'.(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2}).', '%d%b%y'),  # 28Jan22
-    (r'.(\d{4}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2}).', '%Y%b%d'),  # 2022Jan28
-    (r'.(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2}).', '%y%b%d'),  # 22Jan28
-
+    (r'(?<=\D)(\d{8})(?=\D)', '%Y%m%d'),  # 20211228
+    (r'(?<=\D)(\d{8})(?=\D)', '%d%m%Y'),  # 28122021
+    (r'(?<=\D)(\d{8})(?=\D)', '%m%d%Y'),  # 12282021
+    (r'(?<=\D)(\d{6})(?=\D)', '%y%m%d'),  # 211228
+    (r'(?<=\D)(\d{2}\d{2}\d{4})(?=\D)', '%m%d%Y'),  # 01012022
+    (r'(?<=\D)(\d{2}\d{2}\d{2})(?=\D)', '%m%d%y'),  # 010122
+    (r'(?<=\D)(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{4})(?=\D)', '%d%b%Y'),  # 28Jan2022
+    (r'(?<=\D)(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2})(?=\D)', '%d%b%y'),  # 28Jan22
+    (r'(?<=\D)(\d{4}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2})(?=\D)', '%Y%b%d'),  # 2022Jan28
+    (r'(?<=\D)(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2})(?=\D)', '%y%b%d'),  # 22Jan28
 
     
     #(r'\b\d{8}\b', '%Y%m%d'), # 20211228
@@ -71,17 +71,16 @@ date_patterns = [ #ORDER HERE MATTERS - IT SHOULD MATCH AGAINST THE LONGEST DATE
 
 def get_file_age(filepath):
     filename = os.path.basename(filepath)
-    print(filepath)
     for pattern, date_format in date_patterns:
         match = re.search(pattern, filename)
         if match:
-            date_str = match.group()
-            if '_' in date_str:  
-                date_str = match.group(1)
-            date = datetime.strptime(date_str, date_format)
-            age = (datetime.now() - date).days
-            return filename, age
-    #return filename, "does not match any date patterns"
+            date_str = match.group(1)
+            try:
+                date = datetime.strptime(date_str, date_format)
+                age = (datetime.now() - date).days
+                return filename, age
+            except ValueError:
+                continue
 
 
 ## FUNCTION : GRAB THE S3 DIRECTORY PATH TO FILES AND THEN EXTRACT 
@@ -104,24 +103,38 @@ def extract_files_from_s3(zips, raw_files, destination):
             except PermissionError:
                 print(f"Unable to create {folder_structure}. Please close any open files and try again.")
                 return
-            with zipfile.ZipFile(zip_file, 'r') as zip_ref:
-                print(f'Extracting {zip_file} to {folder_structure}')
-                try:
-                    zip_ref.extractall(folder_structure)
-                except FileNotFoundError as e:
-                    error_files.append(folder_structure)
-                    print(f"Unable to extract files to {folder_structure}. Error {e}. Please check the path and try again.")
-                    continue
         else:
-            print(f'{folder_structure} already exists. Skipping extraction.')
-            continue
+            pass
+        with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+            print(f'Extracting {zip_file} to {folder_structure}')
+            try:
+                zip_ref.extractall(folder_structure)
+            except FileNotFoundError as e:
+                error_files.append(folder_structure)
+                print(f"Unable to extract files to {folder_structure}. Error {e}. Please check the path and try again.")
+                continue
 
-    #for files in raw_files:
-    #    directory = os.path.dirname(files)
-    #    constant_path = 'Customers\\'
-    #    directory_parts = directory.split(constant_path)
-    #    directory = constant_path + directory_parts[1]
-    #    folder_structure = destination + directory
+    for files in raw_files:
+        directory = os.path.dirname(files)
+        constant_path = 'Customers\\'
+        directory_parts = directory.split(constant_path)
+        directory = constant_path + directory_parts[1]
+        folder_structure = destination + directory
+        if not os.path.exists(folder_structure):
+            try:
+                print(f'Creating {folder_structure}...')
+                os.makedirs(folder_structure, exist_ok=True)
+            except PermissionError:
+                print(f"Unable to create {folder_structure}. Please close any open files and try again.")
+                return
+        else:
+            pass
+        try:
+            shutil.copy(files, folder_structure)
+        except FileNotFoundError as e:
+            error_files.append(files)
+            print(f"Unable to copy files to {folder_structure}. Error {e}. Please check the path and try again.")
+            continue
 
 
 
@@ -165,17 +178,28 @@ def getNewScans(directory):
 # -------- Public Functions --------
 
 def main():
+
+    #######
     print('Start Time: ', datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
+    #######
+
+    #------ MAIN METHOD ------
+
+    #get both the list of zip files and raw ckl files.
     zip_list, raw_ckls = getNewScans(s3)
-    count = 0 
-    for i in range(len(raw_ckls)):
-        if not get_file_age(raw_ckls[i]) == None:
-            count += 1
-        print(get_file_age(raw_ckls[i]))
-    print(count)
-    print(len(raw_ckls))
-    #extract_files_from_s3(zip_list, raw_ckls, destination_path)
+
+    #clean the raw_ckls list of files that are not valid (None) and if the age of the file is less than 7 days. 
+    raw_ckls = [ckl for ckl in raw_ckls if get_file_age(ckl) is not None]
+
+    #perform extraction of the identified zip files in s3 
+    extract_files_from_s3(zip_list, raw_ckls, destination_path)
+
+    #------ MAIN METHOD ------
+
+    #######
     print('End Time: ', datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
+    #######
+
 
 if __name__ == '__main__':
     main()
