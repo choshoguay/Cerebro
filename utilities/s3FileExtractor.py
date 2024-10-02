@@ -6,9 +6,14 @@ import os
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import zipfile
-import fileAttributesClass
 import re
 import shutil
+from itertools import tee
+import sys
+
+# -------- External Classes -------
+
+#from ..classes import fileAttributesClass
 
 # -------- Global Variables --------
 
@@ -35,36 +40,56 @@ date_patterns = [ #ORDER HERE MATTERS - IT SHOULD MATCH AGAINST THE LONGEST DATE
     (r'(?<=\D)(\d{4}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2})(?=\D)', '%Y%b%d'),  # 2022Jan28
     (r'(?<=\D)(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2})(?=\D)', '%y%b%d'),  # 22Jan28
 
-    
-    #(r'\b\d{8}\b', '%Y%m%d'), # 20211228
-    #(r'\b\d{8}\b', '%d%m%Y'),  # 28122021
-    #(r'\b\d{8}\b', '%m%d%Y'),  # 12282021
-    #(r'\b\d{6}\b', '%y%m%d'), # 211228
-    #(r'\b\d{2}\d{2}\d{4}\b', '%m%d%Y'), # 01012022
-
-    #UNDERSCORES
-    #(r'_(\d{8})\.', '%m%d%Y'),  # _08142018.
-    #(r'_(\d{8})\.', '%Y%m%d'),  # _20180822.
-    #(r'_(\d{8})\.', '%Y%m%d'),  # _20180822.
-    #(r'_(\d{8})_', '%Y%m%d'), # _20211228_
-
-    #(r'\b\d{2}\d{2}\d{2}\b', '%m%d%y'), # 010122
-    #(r'\b\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{4}\b', '%d%b%Y'), # 28Jan2022
-    #(r'\b\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2}\b', '%d%b%y'), # 28Jan22
-    #(r'\b\d{4}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2}\b', '%Y%b%d'), # 2022Jan28
-    #(r'\b\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2}\b', '%y%b%d'), # 22Jan28
-    
-    #UNDERSCORES
-    #(r'_(\d{6})_', '%y%m%d'), # _211228_
-    #(r'_(\d{2}\d{2}\d{4})_', '%m%d%Y'), # _01012022_
-    #(r'_(\d{2}\d{2}\d{2})_', '%m%d%y'), # _010122_
-    #(r'_(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{4})_', '%d%b%Y'), # _28Jan2022_
-    #(r'_(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2})_', '%d%b%y'), # _28Jan22_
-    #(r'_(\d{4}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2})_', '%Y%b%d'), # _2022Jan28_
-    #(r'_(\d{2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\d{2})_', '%y%b%d'), # _22Jan28_
 ]
 
+test_date_patterns = [
+
+    ['%d', '%m', '%Y'], 
+    ['%d', '%b', '%Y'],
+    ['%d', '%B', '%Y'],
+    ['%d', '%b'],
+    ['%d', '%B'],
+    ['%b', '%d'],
+    ['%B', '%d'],
+    ['%b', '%Y'],
+    ['%B', '%Y'],
+
+]
+default_year = 2024
+valid_from = (2015, 1, 1)
+valid_to = (2030, 1, 1)
 # -------- Private Functions --------
+
+## FUNCTION : GET THE AGE OF TH FILE BASED ON THE NAMING IN THE FILE
+## PARAMETER : FILE PATH 
+
+def test_get_file_age(filepath):
+
+    name = os.path.basename(filepath)
+    print(name)
+    t1, t2, t3 = tee(re.findall(r'b\w+\b', name), 3)
+    next(t2, None)
+    next(t3, None)
+    next(t3, None)
+    triples = zip(t1, t2, t3)
+    for triple in triples:
+        for dt_format in test_date_patterns:
+            try:
+                dt = datetime.strptime(' '.join(triple[:len(dt_format)]), ' '.join(dt_format))
+
+                if '%Y' not in dt_format:
+                    dt =  dt.replace(year=default_year)
+
+                if valid_from <= dt <= valid_to:
+                    print(dt.strftime('%d-%b-%Y'))
+                    
+                    for skip in range(1, len(dt_format)):
+                        next(triples)
+                
+                break
+            
+            except ValueError:
+                pass
 
 ## FUNCTION : GET THE AGE OF THE FILE BASED ON THE NAMING IN THE FILE I.E. AUDIT_10JAN21_INITIALS.CKL
 ## PARAMETER : FILE NAME
@@ -105,7 +130,7 @@ def extract_files_from_s3(zips, raw_files, destination):
                 return
         else:
             pass
-        with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+        with zipfile.ZipFile(zip_file, 'r') as zip_ref:       
             print(f'Extracting {zip_file} to {folder_structure}')
             try:
                 zip_ref.extractall(folder_structure)
@@ -137,17 +162,16 @@ def extract_files_from_s3(zips, raw_files, destination):
             continue
 
 
-
-
 ## FUNCTION : SCAN S3 DIRECTORY FOR RESPECTIVE ZIP FILES THAT CONTAIN THE SCAN DATA
 ## PARAMETER : S3 DIRECTORY PATH
 
 def getNewScans(directory):
 
     now = datetime.now()
-    two_years_ago = now - relativedelta(days=730) #temporarily use 2 years for the initial run, then switch to 7 days 
 
-    #seven_days_ago = now - relativedelta(days=7)
+    ## CHANGE ME TO 30 DAYS ##
+    two_years_ago = now - relativedelta(day=730) #temporarily use 2 years for the initial run, then switch to 7 days 
+    #30_days_ago = now - relativedelta(days=30)
 
     zip_files = []
     raw_ckls = []  
@@ -183,6 +207,10 @@ def main():
     print('Start Time: ', datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
     #######
 
+    '''
+    
+    
+
     #------ MAIN METHOD ------
 
     #get both the list of zip files and raw ckl files.
@@ -195,6 +223,11 @@ def main():
     extract_files_from_s3(zip_list, raw_ckls, destination_path)
 
     #------ MAIN METHOD ------
+
+
+    '''
+    a = test_get_file_age("C:\\Users\\Public\\Downloads\\New_CKLs\\Customers\\DoD\\USAF\\DAF ELMR USLA\\A2022.HS\\Quarterly Audits\\2024\\Q3\\Working\Complete\\U_RHEL8_V1R14_z001ntp03.zone1_08212024_SU.ckl")
+    print(a)
 
     #######
     print('End Time: ', datetime.now().strftime("%m/%d/%Y %H:%M:%S"))

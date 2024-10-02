@@ -1,7 +1,7 @@
 import hashlib
 import os
 
-class fileID:
+class fileAttributes:
     def __init__(self, file):
         self.file_name =  os.path.basename(file)
         self.file_hash = self.compute_file_hash(file)

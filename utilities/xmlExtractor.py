@@ -9,9 +9,6 @@
 import zipfile, os, shutil, win32api, re
 from tqdm import tqdm
 
-# -------- Internal Modules --------
-from vidObject import vid
-
 # -------- Global Variables --------
 public_downloads = 'C:/Users/Public/Downloads'
 stig_path = 'C:/Users/Public/Downloads/STIGs'
