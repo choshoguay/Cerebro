@@ -1,7 +1,10 @@
-
+### @author: David Wong
+### @date: 09/04/2024
+### Description: Script that unzips and takes in all of the CKLs and also 
 
 # -------- External Modules --------
 
+import sys
 import os
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -9,11 +12,10 @@ import zipfile
 import re
 import shutil
 from itertools import tee
-import sys
 
-# -------- External Classes -------
-
-#from ..classes import fileAttributesClass
+# -------- External Classes --------
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from classes import fileAttributesClass as fileAttributeClass
 
 # -------- Global Variables --------
 
@@ -23,8 +25,10 @@ s3 = 'E:\\Customers' ##for testing
 organization = {
     'CIV_LEA': ['NA'],
     'DoD': ['Army', 'DLA', 'Navy', 'USAF', 'USMC']
-}
+    }   
+
 postgres_db = '10.1.233.199'
+
 destination_path = 'C:/Users/Public/Downloads/New_CKLs/'
 
 date_patterns = [ #ORDER HERE MATTERS - IT SHOULD MATCH AGAINST THE LONGEST DATE FORMAT FIRST
@@ -42,54 +46,7 @@ date_patterns = [ #ORDER HERE MATTERS - IT SHOULD MATCH AGAINST THE LONGEST DATE
 
 ]
 
-test_date_patterns = [
-
-    ['%d', '%m', '%Y'], 
-    ['%d', '%b', '%Y'],
-    ['%d', '%B', '%Y'],
-    ['%d', '%b'],
-    ['%d', '%B'],
-    ['%b', '%d'],
-    ['%B', '%d'],
-    ['%b', '%Y'],
-    ['%B', '%Y'],
-
-]
-default_year = 2024
-valid_from = (2015, 1, 1)
-valid_to = (2030, 1, 1)
 # -------- Private Functions --------
-
-## FUNCTION : GET THE AGE OF TH FILE BASED ON THE NAMING IN THE FILE
-## PARAMETER : FILE PATH 
-
-def test_get_file_age(filepath):
-
-    name = os.path.basename(filepath)
-    print(name)
-    t1, t2, t3 = tee(re.findall(r'b\w+\b', name), 3)
-    next(t2, None)
-    next(t3, None)
-    next(t3, None)
-    triples = zip(t1, t2, t3)
-    for triple in triples:
-        for dt_format in test_date_patterns:
-            try:
-                dt = datetime.strptime(' '.join(triple[:len(dt_format)]), ' '.join(dt_format))
-
-                if '%Y' not in dt_format:
-                    dt =  dt.replace(year=default_year)
-
-                if valid_from <= dt <= valid_to:
-                    print(dt.strftime('%d-%b-%Y'))
-                    
-                    for skip in range(1, len(dt_format)):
-                        next(triples)
-                
-                break
-            
-            except ValueError:
-                pass
 
 ## FUNCTION : GET THE AGE OF THE FILE BASED ON THE NAMING IN THE FILE I.E. AUDIT_10JAN21_INITIALS.CKL
 ## PARAMETER : FILE NAME
@@ -207,10 +164,6 @@ def main():
     print('Start Time: ', datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
     #######
 
-    '''
-    
-    
-
     #------ MAIN METHOD ------
 
     #get both the list of zip files and raw ckl files.
@@ -223,11 +176,6 @@ def main():
     extract_files_from_s3(zip_list, raw_ckls, destination_path)
 
     #------ MAIN METHOD ------
-
-
-    '''
-    a = test_get_file_age("C:\\Users\\Public\\Downloads\\New_CKLs\\Customers\\DoD\\USAF\\DAF ELMR USLA\\A2022.HS\\Quarterly Audits\\2024\\Q3\\Working\Complete\\U_RHEL8_V1R14_z001ntp03.zone1_08212024_SU.ckl")
-    print(a)
 
     #######
     print('End Time: ', datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
