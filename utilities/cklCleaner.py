@@ -9,7 +9,7 @@ def cleanMe(ckl):
     # Correct regex pattern to match invalid XML characters
     invalid_xml_chars = re.compile(r'[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD]')
     data = None
-    encodings = ['utf-8', 'utf-16', 'utf-32', 'latin-1', 'iso-8859-1']
+    encodings = ['utf-8']
     
     for encoding in encodings:
         try: 

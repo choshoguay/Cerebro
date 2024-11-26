@@ -132,7 +132,7 @@ class VulnID:
 
 
 class customerVulnID(VulnID):
-    def __init__(self, vuln_num=None, host_ip=None, month_year=None, customer_name=None, customer_site=None, system_version=None, 
+    def __init__(self, vuln_num=None, host_ip=None, quarterly_audit=None, customer_system=None, customer_site=None, system_version=None, 
                  
                  status=None, finding_details=None, comments=None, 
 
@@ -153,8 +153,8 @@ class customerVulnID(VulnID):
         self.finding_details = finding_details
         # Customer specific attributes - new attributes
         self.host_ip = host_ip
-        self.month_year = month_year
-        self.customer_name = customer_name
+        self.quarterly_audit = quarterly_audit
+        self.customer_system = customer_system
         self.customer_site = customer_site
         self.system_version = system_version
 
